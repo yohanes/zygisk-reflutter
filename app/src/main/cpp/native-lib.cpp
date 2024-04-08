@@ -25,7 +25,10 @@ void *my_dlopen(const char *filename, int flags)
 }
 
 static void send_string(int fd, const char *str) {
-    int len = strlen(str);
+    int len = 0;
+    if (str) {
+        len = strlen(str);
+    }
     write(fd, &len, sizeof(len));
     write(fd, str, len);
 }

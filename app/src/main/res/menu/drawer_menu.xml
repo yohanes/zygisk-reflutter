@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    <group android:checkableBehavior="single" >
+        <item
+            android:id="@+id/nav_set_host"
+            android:title="Set Proxy Host" />
+        <item
+            android:id="@+id/nav_about"
+            android:title="About" />
+        <!-- Add more items here -->
+    </group>
+</menu>

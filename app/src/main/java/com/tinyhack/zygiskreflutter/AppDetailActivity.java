@@ -9,7 +9,9 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
+
 import android.content.Intent;
+import android.util.Log;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.ProgressBar;
@@ -17,83 +19,71 @@ import android.widget.TextView;
 
 import org.w3c.dom.Text;
 
+import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.FileReader;
 import java.io.BufferedReader;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipEntry;
 
 public class AppDetailActivity extends AppCompatActivity {
 
-    private boolean isFlutter  = false;
+    private boolean isFlutter = false;
     private EngineHashInfo.EngineHashEntry entry = null;
 
-   private String getFlutterhash(String apkPath, String flutterPath) {
-       try {
-           // Open the APK file as a ZipFile
-           ZipFile zipFile = new ZipFile(apkPath);
+    private Set<String> getFlutterhash(String apkPath, String flutterPath) {
+        try {
+            // Open the APK file as a ZipFile
+            try (ZipFile zipFile = new ZipFile(apkPath)) {
 
-           // Get the ZipEntry for the flutterPath
-           ZipEntry entry = zipFile.getEntry(flutterPath);
+                // Get the ZipEntry for the flutterPath
+                ZipEntry entry = zipFile.getEntry(flutterPath);
 
-           String cachePath = this.getFilesDir().getAbsolutePath() + "/hash-" + entry.getCrc() + "-" + entry.getSize() + ".txt";
+                // Open an InputStream for the ZipEntry
+                InputStream stream = zipFile.getInputStream(entry);
 
-           //if exists, read and return this
-           try {
-               FileReader fileReader = new FileReader(cachePath);
-               BufferedReader bufferedReader = new BufferedReader(fileReader);
-               String line = bufferedReader.readLine();
-               bufferedReader.close();
-               return line;
-           } catch (IOException e) {
-               //ignore
-           }
+                BufferedInputStream bstream = new BufferedInputStream(stream);
 
-           // Open an InputStream for the ZipEntry
-           InputStream stream = zipFile.getInputStream(entry);
+                // Initialize an empty StringBuilder for the current sequence of hexadecimal characters
+                StringBuilder currentSequence = new StringBuilder();
 
-           // Initialize an empty StringBuilder for the current sequence of hexadecimal characters
-           StringBuilder currentSequence = new StringBuilder();
+                Set<String> hashsFound = new LinkedHashSet<>();
+                // Read the InputStream byte by byte
+                int b;
+                while ((b = bstream.read()) != -1) {
+                    char c = (char) b;
 
-           // Read the InputStream byte by byte
-           int b;
-           while ((b = stream.read()) != -1) {
-               char c = (char) b;
+                    // Check if the character is a hexadecimal character
+                    if ((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+                        // If it is, append it to the current sequence
+                        currentSequence.append(c);
 
-               // Check if the character is a hexadecimal character
-               if ((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
-                   // If it is, append it to the current sequence
-                   currentSequence.append(c);
+                    } else {
+                        // If the current sequence reaches 32 characters, return it
+                        if (currentSequence.length() == 32) {
+                            String thehash = currentSequence.toString();
+                            Log.d("ZigiskReflutter", "flutter hash : " + thehash);
+                            hashsFound.add(thehash);
+                        }
 
-               } else {
-                   // If the current sequence reaches 32 characters, return it
-                   if (currentSequence.length() == 32) {
-                       String thehash = currentSequence.toString();
-                       //save cache
-                       //open file
-                       try {
-                           java.io.FileWriter fileWriter = new java.io.FileWriter(cachePath);
-                           fileWriter.write(thehash);
-                           fileWriter.close();
-                       } catch (IOException e) {
-                           //ignore
-                       }
-                       return thehash;
-                   }
+                        // If it's not a hexadecimal character, reset the current sequence
+                        currentSequence.setLength(0);
+                    }
+                }
 
-                   // If it's not a hexadecimal character, reset the current sequence
-                   currentSequence.setLength(0);
-               }
-           }
+                // If the end of the InputStream is reached and no 32-character sequence has been found, return null
+                return hashsFound;
+            }
 
-           // If the end of the InputStream is reached and no 32-character sequence has been found, return null
-           return null;
-       } catch (IOException e) {
-           throw new RuntimeException(e);
-       }
 
-   }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
+    }
 
     private String getFirstLineFromFile(String path) {
         try {
@@ -130,6 +120,7 @@ public class AppDetailActivity extends AppCompatActivity {
     private String arch;
     private String packageName;
     private String enable_path;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -154,7 +145,7 @@ public class AppDetailActivity extends AppCompatActivity {
         checkBoxClassDump.setEnabled(false);
         checkBoxClassDump.setChecked(false);
 
-        enable_path = getFilesDir().getAbsolutePath() + "/"+ packageName + ".txt";
+        enable_path = getFilesDir().getAbsolutePath() + "/" + packageName + ".txt";
 
         //set as unchecked and disabled
         checkBox.setChecked(false);
@@ -163,8 +154,8 @@ public class AppDetailActivity extends AppCompatActivity {
         checkBox.setOnCheckedChangeListener((buttonView, isChecked) -> {
 
             if (isChecked) {
-                if (entry!=null) {
-                    saveToFile(enable_path, "v2-"+entry.Snapshot_hash);
+                if (entry != null) {
+                    saveToFile(enable_path, "v2-" + entry.Snapshot_hash);
                 }
             } else {
                 try {
@@ -180,8 +171,8 @@ public class AppDetailActivity extends AppCompatActivity {
                 //must disable first checkbox
                 checkBox.setEnabled(false);
                 checkBox.setChecked(true);
-                if (entry!=null) {
-                    saveToFile(enable_path, "v3-"+entry.Snapshot_hash);
+                if (entry != null) {
+                    saveToFile(enable_path, "v3-" + entry.Snapshot_hash);
                 }
             } else {
                 if (hasV2File()) {
@@ -205,7 +196,7 @@ public class AppDetailActivity extends AppCompatActivity {
             arch = "arm";
         }
 
-        Button downloadProxyLibButton = (Button)findViewById(R.id.downloadProxyLibButton);
+        Button downloadProxyLibButton = (Button) findViewById(R.id.downloadProxyLibButton);
         //disable the button
         downloadProxyLibButton.setEnabled(false);
         //download button handler
@@ -236,7 +227,7 @@ public class AppDetailActivity extends AppCompatActivity {
             task.downloadFile(url, dest);
         });
 
-        Button downloadClassDumpButton = (Button)findViewById(R.id.downloadClassDumpButton);
+        Button downloadClassDumpButton = (Button) findViewById(R.id.downloadClassDumpButton);
         //disable the button
         downloadClassDumpButton.setEnabled(false);
         downloadClassDumpButton.setOnClickListener(v -> {
@@ -266,7 +257,6 @@ public class AppDetailActivity extends AppCompatActivity {
         });
 
 
-
         //get application info
         try {
             ApplicationInfo appInfo = getPackageManager().getApplicationInfo(packageName, 0);
@@ -288,6 +278,7 @@ public class AppDetailActivity extends AppCompatActivity {
                 sourceDirs = new String[]{appInfo.publicSourceDir};
                 libAPK = appInfo.publicSourceDir;
             }
+            Log.d("ZigiskReflutter", "libAPK : " + libAPK);
             TextView apkName = findViewById(R.id.apkName);
             if (libAPK != null) {
                 //apkName.setText(libAPK);
@@ -296,6 +287,7 @@ public class AppDetailActivity extends AppCompatActivity {
                 ZipFile zipFile = null;
                 String flutterPath = null;
                 try {
+
 
                     zipFile = new ZipFile(libAPK);
                     //iterate through entries
@@ -313,12 +305,19 @@ public class AppDetailActivity extends AppCompatActivity {
                         //find the hash is a new thread, since it is slow
                         String finalLibAPK = libAPK;
                         String finalFlutterPath = flutterPath;
+                        Log.d("ZigiskReflutter", "flutterPath : " + flutterPath);
                         new Thread(() -> {
-                            String flutterHash = getFlutterhash(finalLibAPK, finalFlutterPath);
+                            Set<String> flutterHashes = getFlutterhash(finalLibAPK, finalFlutterPath);
+                            Log.d("ZigiskReflutter", "flutterHashes : " + flutterHashes);
                             runOnUiThread(() -> {
                                 //try to find this hash
                                 EngineHashInfo engineHashInfo = EngineHashInfo.getInstance(AppDetailActivity.this);
-                                entry = engineHashInfo.findEntryBySnapshotHash(flutterHash);
+                                for (String flutterHash : flutterHashes) {
+                                    entry = engineHashInfo.findEntryBySnapshotHash(flutterHash);
+                                    if (entry != null) {
+                                        break;
+                                    }
+                                }
                                 if (entry != null) {
 
                                     apkName.setText("Supported Flutter " + entry.version);
@@ -329,7 +328,7 @@ public class AppDetailActivity extends AppCompatActivity {
                                         checkBox.setEnabled(true);
                                         String line = getFirstLineFromFile(enable_path);
                                         //if exists, then it is enabled
-                                        if (line !=null) {
+                                        if (line != null) {
                                             if (line.contains("v3")) {
                                                 checkBox.setChecked(true);
                                                 checkBox.setEnabled(false);
@@ -355,7 +354,7 @@ public class AppDetailActivity extends AppCompatActivity {
                                         if (new java.io.File(enable_path).exists()) {
                                             //read the file content
                                             String line = getFirstLineFromFile(enable_path);
-                                            if (line!=null && line.contains("v3")) {
+                                            if (line != null && line.contains("v3")) {
                                                 checkBoxClassDump.setChecked(true);
                                             } else {
                                                 checkBoxClassDump.setChecked(false);
@@ -370,7 +369,7 @@ public class AppDetailActivity extends AppCompatActivity {
                                     }
 
                                 } else {
-                                    apkName.setText("Unsupported Flutter " + flutterHash);
+                                    apkName.setText("Unsupported Flutter " + flutterHashes);
                                 }
                             });
                         }).start();
@@ -384,7 +383,7 @@ public class AppDetailActivity extends AppCompatActivity {
                     throw new RuntimeException(e);
                 }
 
-            } else{
+            } else {
                 apkName.setText("No APK found");
             }
 
